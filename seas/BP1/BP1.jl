@@ -1,17 +1,18 @@
 include("../../global_curved.jl")
 include("odefun.jl")
+using Plots
 
-let
-  sim_years = 3000.
+function main()
+  sim_years = 1000.
 
   Vp = 1e-9 # plate rate
   ρ = 2.670
   cs = 3.464
   σn = 50
-  RSamin = 0.010
+  RSamin = 0.01
   RSamax = 0.025
   RSb = 0.015
-  RSDc = 0.008
+  RSDc = 0.016
   RSf0 = 0.6
   RSV0 = 1e-6
   RSVinit = 1e-9
@@ -21,133 +22,115 @@ let
   μshear = cs^2 * ρ
   η = μshear / (2 * cs)
 
+
+  # N + 1 is the number of grid points in each dimension
+  N = 200
+  δNp = N + 1
+
   # SBP interior order
-  SBPp   = 6
+  SBPp   = 2
 
-  RS_FAULT = 7
-  VP_FAULT = 8
-  (verts, EToV, EToF,
-   FToB, EToDomain) = read_inp_2d(joinpath(@__DIR__, "meshes/BP1_v1.inp"))
+  # mesh file side set type to actually boundary condition type
+  bc_map = [BC_DIRICHLET, BC_DIRICHLET, BC_NEUMANN, BC_NEUMANN,
+            BC_JUMP_INTERFACE]
 
-  # number of elements and faces
-  (nelems, nfaces) = (size(EToV, 2), size(FToB, 1))
-  @show (nelems, nfaces)
+  (verts, EToV, EToF, FToB, EToDomain) = read_inp_2d("meshes/1_1_block.inp";
+            bc_map=bc_map)
 
-  # Plot the original connectivity before mesh warping
-  # plot_connectivity(verts, EToV)
+   # number of elements and faces
+   (nelems, nfaces) = (size(EToV, 2), size(FToB, 1))
+   @show (nelems, nfaces)
 
-  Nr = Ns = fill(ceil(Int, 3e3 / 50), nelems)
-  # Nr = Ns = fill(ceil(Int, 3e3 / 100), nelems)
-  # Nr = Ns = fill(20, nelems)
-  @show Nr[1]
 
-  (FToE, FToLF, EToO, EToS) = connectivityarrays(EToV, EToF)
+   # EToN0 is the base mesh size (e.g., before refinement)
+   EToN0 = zeros(Int64, 2, nelems)
+   EToN0[1, :] .= N
+   EToN0[2, :] .= N
 
-  OPTYPE = typeof(locoperator(2, 8, 8))
-  lop = Dict{Int64, OPTYPE}()
+   # Exact solution
+   Lx = 80
+   Ly = 80
 
-  # Loop over blocks and create local operators
-  for e = 1:nelems
-    # Get the element corners
-    (x1, x2, x3, x4) = verts[1, EToV[:, e]]
-    (y1, y2, y3, y4) = verts[2, EToV[:, e]]
 
-    xt = (r,s)->transfinite_blend(x1, x2, x3, x4, r, s)
-    yt = (r,s)->transfinite_blend(y1, y2, y3, y4, r, s)
+     # Set up the local grid dimensions
+     Nr = EToN0[1, :]
+     Ns = EToN0[2, :]
 
-    metrics = create_metrics(SBPp, Nr[e], Ns[e], xt, yt)
+     # Dictionary to store the operators
+     OPTYPE = typeof(locoperator(2, 8, 8))
+     lop = Dict{Int64,OPTYPE}() # Be extra careful about the () here
 
-    # Build local operators
-    lop[e] = locoperator(SBPp, Nr[e], Ns[e], metrics, FToB[EToF[:, e]])
-  end
+     el_x = 10e12 # set it to be infinity to have even spread
+     el_y = 10e12
+     xt = (r,s) -> (el_x .* tan.(atan((Lx )/el_x).* (0.5*r .+ 0.5))  , el_x .* sec.(atan((Lx )/el_x).* (0.5*r .+ 0.5)).^2 * atan((Lx)/el_x) * 0.5 ,zeros(size(s)))
+     yt = (r,s) -> (el_y .* tan.(atan((Ly )/el_y).* (0.5*s .+ 0.5))  , zeros(size(r)), el_y .* sec.(atan((Ly )/el_y).*(0.5*s .+ 0.5)) .^2 * atan((Ly )/el_y) * 0.5 )
 
-  plot_blocks(lop)
 
-  #
-  # Do some assemble of the global volume operators
-  #
-  (M, FbarT, D, vstarts, FToλstarts) =
-    LocalGlobalOperators(lop, Nr, Ns, FToB, FToE, FToLF, EToO, EToS,
-                         (x) -> cholesky(Symmetric(x)))
+     # create metrics
+     metrics = create_metrics(SBPp, Nr[1], Ns[1], xt, yt) # not quite sure about this part
 
-  locfactors = M.F
+     # create local operator
+     LFtoB = [BC_DIRICHLET,BC_DIRICHLET,BC_NEUMANN,BC_NEUMANN]
+     lop = Dict{Int64,OPTYPE}() # This step to create a dict is essential
+     lop[1] = locoperator(SBPp, Nr[1], Ns[1], metrics, LFtoB) # this function might not be correct
 
-  # Get a unique array indexes for the face to jumps map
-  FToδstarts = bcstarts(FToB, FToE, FToLF, (RS_FAULT, VP_FAULT), Nr, Ns)
+     # obtain M
+     factorization = (x) -> cholesky(Symmetric(x))
+     M = SBPLocalOperator1(lop, Nr[1], Ns[1], factorization)
 
-  # Compute the number of volume, trace (λ), and jump (δ) points
-  VNp = vstarts[nelems+1]-1
-  λNp = FToλstarts[nfaces+1]-1
-  δNp = FToδstarts[nfaces+1]-1
+     # obtain ge that stores boundary data
+     ge = zeros((Nr[1]+1) * (Ns[1]+1))
+     e = 1
 
-  # Build the (sparse) λ matrix using the schur complement and factor
-  B = assembleλmatrix(FToλstarts, vstarts, EToF, FToB, locfactors, D, FbarT)
-  BF = cholesky(Symmetric(B))
+
+     # boundary conditions
+     bc_Dirichlet = (lf, x, y, e) -> zeros(size(x))
+     bc_Neumann   = (lf, x, y, nx, ny, e) -> zeros(size(x))
+     # set right-hand side and solve
+     locbcarray_mod!(ge, lop[e], LFtoB, bc_Dirichlet, bc_Neumann,(e))
+     u = M.F[e] \ ge
+
+  Δτ = zeros(N+1)
 
   # Assemble fault variables/data
-  (bλ, λ, gδ) = (zeros(λNp), zeros(λNp), zeros(λNp))
-  (u, g) = (zeros(VNp), zeros(VNp))
-  RSa = zeros(δNp)
-  for f = 1:nfaces
-    if FToB[f] ∈ (RS_FAULT, VP_FAULT)
-      (e1, _) = FToE[:, f]
-      (lf1, _) = FToLF[:, f]
-      xf = lop[e1].facecoord[1][lf1]
-      yf = lop[e1].facecoord[2][lf1]
-      δrng = FToδstarts[f]:(FToδstarts[f+1]-1)
-      for n = 1:length(δrng)
-        RSa[δrng[n]] = RSamin - (RSamin - RSamax) *
-          min(1, max(0, (RSH1 + yf[n])/(RSH1 - RSH2)))
-      end
-    end
+  RSa = zeros(N+1)
+
+  xf = lop[1].facecoord[1][1]
+  yf = lop[1].facecoord[2][1]
+  for n = 1:N+1
+      RSa[n] = RSamin - (RSamin - RSamax) *
+        min(1, max(0, (RSH1 - yf[n])/(RSH1 - RSH2)))
   end
 
-  τz0 = fill(σn * RSamax * asinh(RSVinit / (2 * RSV0) *
+  τz0 = σn * RSamax * asinh(RSVinit / (2 * RSV0) *
                                  exp.((RSf0 + RSb * log.(RSV0 / RSVinit)) /
-                                      RSamax)) + η * RSVinit,
-             δNp)
+                                      RSamax)) + η * RSVinit
+
 
   θ = (RSDc ./ RSV0) .* exp.((RSa ./ RSb) .* log.((2 .* RSV0 ./ RSVinit) .*
       sinh.((τz0 .- η .* RSVinit) ./ (RSa .* σn))) .- RSf0 ./ RSb)
+
+
   ψ0 = RSf0 .+ RSb .* log.(RSV0 .* θ ./ RSDc)
 
-  for f = 1:nfaces
-    if FToB[f] == RS_FAULT
-      (e1, e2) = FToE[:, f]
-      (lf1, lf2) = FToLF[:, f]
-      nx = lop[e1].nx
-      δrng = FToδstarts[f]:(FToδstarts[f+1]-1)
-      for n = 1:length(δrng)
-        τz0[δrng[n]] = sign(nx[lf1][n])*abs(τz0[δrng[n]])
-      end
-    end
-  end
 
-  τ = zeros(δNp)
   ψδ = zeros(2δNp)
   ψδ[1:δNp] .= ψ0
 
+  #δ = zeros(δNp)
+  #pyplot()
+  #display(plot(yf, δ))
+  #sleep(1)
+
+
+  # set up parameters sent to right hand side
   odeparam = (reject_step = [false],
               Vp=Vp,
               lop=lop,
-              EToF=EToF,
-              EToS=EToS,
-              FToE=FToE,
-              FToLF=FToLF,
-              EToO=EToO,
-              FToB=FToB,
-              FToλstarts=FToλstarts,
-              FToδstarts=FToδstarts,
-              gδ=gδ,
-              λ=λ,
-              bλ=bλ,
+              F = M.F[e],
               u=u,
-              τ=τ,
-              g=g,
-              vstarts=vstarts,
-              BF=BF,
-              FbarT=FbarT,
-              locfactors=locfactors,
+              Δτ = Δτ,
+              ge = ge,
               μshear=μshear,
               RSa=RSa,
               RSb=RSb,
@@ -157,7 +140,9 @@ let
               τz0=τz0,
               RSDc=RSDc,
               RSf0=RSf0,
+              LFtoB = LFtoB
              )
+
   dψV = zeros(2δNp)
   tspan = (0, sim_years * year_seconds)
   prob = ODEProblem(odefun, ψδ, tspan, odeparam)
@@ -169,29 +154,35 @@ let
     end
     return false
   end
-  stations_locations = [0 0
-                        0 -2.5
-                        0 -5
-                        0 -7.5
-                        0 -10
-                        0 -12.5
-                        0 -15
-                        0 -17.5
-                        0 -20
-                        0 -25
-                        0 -30
-                       ]
-  stations = setupfaultstations(stations_locations, lop, FToB, FToE, FToLF,
-                                (RS_FAULT, VP_FAULT))
-  cb = SavingCallback((ψδ, t, i)->savefaultstation(ψδ, t, i, stations,
-                                                   FToδstarts, odeparam,
-                                                   "BP1_N_$(Nr[1])_", 10year_seconds),
-                      SavedValues(Float64, Float64))
+
+
   sol = solve(prob, Tsit5(); isoutofdomain=stepcheck, dt=year_seconds,
-              atol = 1e-6, rtol = 1e-3, save_everystep=false,
-              internalnorm=(x, _)->norm(x, Inf), callback=cb)
+              atol = 1e-5, rtol = 1e-3, save_everystep=true,
+              internalnorm=(x, _)->norm(x, Inf))
 
 
+  return (sol, yf)
 end
 
-nothing
+function plot_slip(S, yf, stride_time)
+
+  m = length(yf)
+  no_time_steps = size(S.t)
+  slip_final = S.u[end][end]
+
+  for i = 1:stride_time:no_time_steps[1]
+
+    slip_t = S.u[i][m+1:end] # slip at time t
+    #pyplot()
+    display(plot(slip_t, -yf, xtickfont=font(18),
+    ytickfont=font(18),
+    guidefont=font(18),
+    legendfont=font(18), ylabel = "Depth (km)", xlabel = "Slip (m)", xlims = (0, slip_final)))
+    sleep(0.1)
+  end
+
+  #nothing
+end
+
+(S, yf) = main()
+plot_slip(S, yf, 10)
