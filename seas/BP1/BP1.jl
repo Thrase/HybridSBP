@@ -3,7 +3,7 @@ include("odefun.jl")
 using Plots
 
 function main()
-  sim_years = 1000.
+  sim_years = 300.
 
   Vp = 1e-9 # plate rate
   ρ = 2.670
@@ -18,6 +18,7 @@ function main()
   RSVinit = 1e-9
   RSH1 = 15
   RSH2 = 18
+  RSWf = 40
 
   μshear = cs^2 * ρ
   η = μshear / (2 * cs)
@@ -25,7 +26,6 @@ function main()
 
   # N + 1 is the number of grid points in each dimension
   N = 200
-  δNp = N + 1
 
   # SBP interior order
   SBPp   = 2
@@ -69,7 +69,12 @@ function main()
      # create metrics
      metrics = create_metrics(SBPp, Nr[1], Ns[1], xt, yt) # not quite sure about this part
 
-     # create local operator
+     fault_coord = metrics.coord[2][1,:]
+     (mm, δNp) = findmin(abs.(RSWf .- fault_coord))
+     @assert fault_coord[δNp] ≈ RSWf
+
+
+     #create local operator
      LFtoB = [BC_DIRICHLET,BC_DIRICHLET,BC_NEUMANN,BC_NEUMANN]
      lop = Dict{Int64,OPTYPE}() # This step to create a dict is essential
      lop[1] = locoperator(SBPp, Nr[1], Ns[1], metrics, LFtoB) # this function might not be correct
@@ -93,11 +98,11 @@ function main()
   Δτ = zeros(N+1)
 
   # Assemble fault variables/data
-  RSa = zeros(N+1)
+  RSa = zeros(δNp)
 
   xf = lop[1].facecoord[1][1]
   yf = lop[1].facecoord[2][1]
-  for n = 1:N+1
+  for n = 1:δNp
       RSa[n] = RSamin - (RSamin - RSamax) *
         min(1, max(0, (RSH1 - yf[n])/(RSH1 - RSH2)))
   end
@@ -114,14 +119,13 @@ function main()
   ψ0 = RSf0 .+ RSb .* log.(RSV0 .* θ ./ RSDc)
 
 
-  ψδ = zeros(2δNp)
+  ψδ = zeros(δNp + N + 1)  #because length(ψ) = δNp,  length(δ) = N+1
   ψδ[1:δNp] .= ψ0
 
   #δ = zeros(δNp)
   #pyplot()
   #display(plot(yf, δ))
   #sleep(1)
-
 
   # set up parameters sent to right hand side
   odeparam = (reject_step = [false],
@@ -140,10 +144,12 @@ function main()
               τz0=τz0,
               RSDc=RSDc,
               RSf0=RSf0,
-              LFtoB = LFtoB
+              LFtoB = LFtoB,
+              δNp = δNp,
+              N = N
              )
 
-  dψV = zeros(2δNp)
+  dψV = zeros(δNp + N + 1)
   tspan = (0, sim_years * year_seconds)
   prob = ODEProblem(odefun, ψδ, tspan, odeparam)
   function stepcheck(_, p, _)
@@ -161,10 +167,10 @@ function main()
               internalnorm=(x, _)->norm(x, Inf))
 
 
-  return (sol, yf)
+  return (sol, yf, δNp)
 end
 
-function plot_slip(S, yf, stride_time)
+function plot_slip(S, δNp, yf, stride_time)
 
   m = length(yf)
   no_time_steps = size(S.t)
@@ -172,7 +178,7 @@ function plot_slip(S, yf, stride_time)
 
   for i = 1:stride_time:no_time_steps[1]
 
-    slip_t = S.u[i][m+1:end] # slip at time t
+    slip_t = S.u[i][δNp+1:end] # slip at time t
     #pyplot()
     display(plot(slip_t, -yf, xtickfont=font(18),
     ytickfont=font(18),
@@ -184,5 +190,5 @@ function plot_slip(S, yf, stride_time)
   #nothing
 end
 
-(S, yf) = main()
-plot_slip(S, yf, 10)
+(S, yf, δNp) = main()
+plot_slip(S, δNp, yf, 10)

@@ -23,14 +23,16 @@ function odefun(dψV, ψδ, p, t)
   RSDc = p.RSDc
   RSf0 = p.RSf0
   LFtoB = p.LFtoB
+  δNp = p.δNp
+  N = p.N
 
 
   if reject_step[1]
     return
   end
-  δNp = div(length(ψδ), 2)
+
   ψ  = @view ψδ[        (1:δNp) ]
-  δ  = ψδ[ δNp .+ (1:δNp) ]
+  δ  = ψδ[ δNp .+ (1:N+1) ]
 
 
   bc_Dirichlet = (lf, x, y, e) -> (2-lf)*(δ ./ 2) + (lf-1)*fill(t * Vp/2, size(x))
@@ -45,7 +47,7 @@ function odefun(dψV, ψδ, p, t)
 
   # set up rates of change for  state and slip
   dψ = @view dψV[       (1:δNp) ]
-  V  = @view dψV[δNp .+ (1:δNp) ]
+  V  = @view dψV[ δNp .+ (1:N+1)]
 
   dψ .= 0
   V  .= 0
@@ -93,6 +95,8 @@ function odefun(dψV, ψδ, p, t)
       return
     end
   end
+
+  V[δNp+1:N+1] .= Vp
 
   nothing
 end
