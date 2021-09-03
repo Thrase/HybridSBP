@@ -313,24 +313,25 @@ function locoperator(p, Nr, Ns, metrics=create_metrics(p,Nr,Ns),
   for i = 1:Nrp
     rng = i .+ Nrp * (0:Ns)
     (_, S0e, SNe, _, _, Ae, _) = variable_diagonal_sbp_D2(p, Ns, css[rng])
-    R = Ae - Dr' * Hr * Diagonal(css[rng]) * Dr
+
+    R = Ae - Ds' * Hs * Diagonal(css[rng]) * Ds
 
     (Ie, Je, Ve) = findnz(Ae)
     IAss[stAss .+ (1:length(Ve))] = i .+ Nrp * (Ie .- 1)
     JAss[stAss .+ (1:length(Ve))] = i .+ Nrp * (Je .- 1)
-    VAss[stAss .+ (1:length(Ve))] = Hr[i,i] * Ve
+    VAss[stAss .+ (1:length(Ve))] = Hs[i,i] * Ve
     stAss += length(Ve)
 
     (Ie, Je, Ve) = findnz(S0e)
     ISs0[stSs0 .+ (1:length(Ve))] = i .+ Nrp * (Ie .- 1)
     JSs0[stSs0 .+ (1:length(Ve))] = i .+ Nrp * (Je .- 1)
-    VSs0[stSs0 .+ (1:length(Ve))] = Hr[i,i] * Ve
+    VSs0[stSs0 .+ (1:length(Ve))] = Hs[i,i] * Ve
     stSs0 += length(Ve)
 
     (Ie, Je, Ve) = findnz(SNe)
     ISsN[stSsN .+ (1:length(Ve))] = i .+ Nrp * (Ie .- 1)
     JSsN[stSsN .+ (1:length(Ve))] = i .+ Nrp * (Je .- 1)
-    VSsN[stSsN .+ (1:length(Ve))] = Hr[i,i] * Ve
+    VSsN[stSsN .+ (1:length(Ve))] = Hs[i,i] * Ve
     stSsN += length(Ve)
   end
   Ãss = sparse(IAss[1:stAss], JAss[1:stAss], VAss[1:stAss], Np, Np)
