@@ -296,41 +296,41 @@ function locoperator(p, Nr, Ns, metrics=create_metrics(p,Nr,Ns),
 
   #{{{ Set up the ss derivative matrix
   (_, S0e, SNe, _, _, Ae, _) = variable_diagonal_sbp_D2(p, Ns, rand(Nsp))
-  IAss = Array{Int64,1}(undef,Nrp * length(Ae.nzval))
-  JAss = Array{Int64,1}(undef,Nrp * length(Ae.nzval))
-  VAss = Array{Float64,1}(undef,Nrp * length(Ae.nzval))
+  IAss = Array{Int64,1}(undef,Nsp * length(Ae.nzval))
+  JAss = Array{Int64,1}(undef,Nsp * length(Ae.nzval))
+  VAss = Array{Float64,1}(undef,Nsp * length(Ae.nzval))
   stAss = 0
 
-  ISs0 = Array{Int64,1}(undef,Nrp * length(S0e.nzval))
-  JSs0 = Array{Int64,1}(undef,Nrp * length(S0e.nzval))
-  VSs0 = Array{Float64,1}(undef,Nrp * length(S0e.nzval))
+  ISs0 = Array{Int64,1}(undef,Nsp * length(S0e.nzval))
+  JSs0 = Array{Int64,1}(undef,Nsp * length(S0e.nzval))
+  VSs0 = Array{Float64,1}(undef,Nsp * length(S0e.nzval))
   stSs0 = 0
 
-  ISsN = Array{Int64,1}(undef,Nrp * length(SNe.nzval))
-  JSsN = Array{Int64,1}(undef,Nrp * length(SNe.nzval))
-  VSsN = Array{Float64,1}(undef,Nrp * length(SNe.nzval))
+  ISsN = Array{Int64,1}(undef,Nsp * length(SNe.nzval))
+  JSsN = Array{Int64,1}(undef,Nsp * length(SNe.nzval))
+  VSsN = Array{Float64,1}(undef,Nsp * length(SNe.nzval))
   stSsN = 0
-  for i = 1:Nrp
-    rng = i .+ Nrp * (0:Ns)
+  for i = 1:Nsp
+    rng = i .+ Nsp * (0:Ns)
     (_, S0e, SNe, _, _, Ae, _) = variable_diagonal_sbp_D2(p, Ns, css[rng])
 
     R = Ae - Ds' * Hs * Diagonal(css[rng]) * Ds
 
     (Ie, Je, Ve) = findnz(Ae)
-    IAss[stAss .+ (1:length(Ve))] = i .+ Nrp * (Ie .- 1)
-    JAss[stAss .+ (1:length(Ve))] = i .+ Nrp * (Je .- 1)
+    IAss[stAss .+ (1:length(Ve))] = i .+ Nsp * (Ie .- 1)
+    JAss[stAss .+ (1:length(Ve))] = i .+ Nsp * (Je .- 1)
     VAss[stAss .+ (1:length(Ve))] = Hs[i,i] * Ve
     stAss += length(Ve)
 
     (Ie, Je, Ve) = findnz(S0e)
-    ISs0[stSs0 .+ (1:length(Ve))] = i .+ Nrp * (Ie .- 1)
-    JSs0[stSs0 .+ (1:length(Ve))] = i .+ Nrp * (Je .- 1)
+    ISs0[stSs0 .+ (1:length(Ve))] = i .+ Nsp * (Ie .- 1)
+    JSs0[stSs0 .+ (1:length(Ve))] = i .+ Nsp * (Je .- 1)
     VSs0[stSs0 .+ (1:length(Ve))] = Hs[i,i] * Ve
     stSs0 += length(Ve)
 
     (Ie, Je, Ve) = findnz(SNe)
-    ISsN[stSsN .+ (1:length(Ve))] = i .+ Nrp * (Ie .- 1)
-    JSsN[stSsN .+ (1:length(Ve))] = i .+ Nrp * (Je .- 1)
+    ISsN[stSsN .+ (1:length(Ve))] = i .+ Nsp * (Ie .- 1)
+    JSsN[stSsN .+ (1:length(Ve))] = i .+ Nsp * (Je .- 1)
     VSsN[stSsN .+ (1:length(Ve))] = Hs[i,i] * Ve
     stSsN += length(Ve)
   end
