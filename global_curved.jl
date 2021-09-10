@@ -1,6 +1,5 @@
 using SparseArrays
 using LinearAlgebra
-using UnicodePlots
 
 include("diagonal_sbp.jl")
 
@@ -915,69 +914,73 @@ end
 
 # }}}
 
-function plot_connectivity(verts, EToV)
-  Lx = extrema(verts[1,:])
-  Lx = (floor(Int, Lx[1]), ceil(Int, Lx[2]))
-  Ly = extrema(verts[2,:])
-  Ly = (floor(Int, Ly[1]), ceil(Int, Ly[2]))
-  plt = Plot(BrailleCanvas(80, 40,
-                           origin_x = Lx[1], origin_y = Ly[1],
-                           width = Lx[2] - Lx[1], height = Ly[2] - Ly[1]))
+try
+  using UnicodePlots
 
+  function plot_connectivity(verts, EToV)
+    Lx = extrema(verts[1,:])
+    Lx = (floor(Int, Lx[1]), ceil(Int, Lx[2]))
+    Ly = extrema(verts[2,:])
+    Ly = (floor(Int, Ly[1]), ceil(Int, Ly[2]))
+    plt = Plot(BrailleCanvas(80, 40,
+                             origin_x = Lx[1], origin_y = Ly[1],
+                             width = Lx[2] - Lx[1], height = Ly[2] - Ly[1]))
 
-  annotate!(plt, :l, nrows(plt.graphics), string(Ly[1]), color = :light_black)
-  annotate!(plt, :l, 1, string(Ly[2]), color = :light_black)
-  annotate!(plt, :bl, string(Lx[1]), color = :light_black)
-  annotate!(plt, :br, string(Lx[2]), color = :light_black)
-  for e = 1:size(EToV, 2)
-    (v1, v2, v3, v4) = EToV[1:4, e]
-    x = verts[1, [v1 v2 v4 v3 v1]][:]
-    y = verts[2, [v1 v2 v4 v3 v1]][:]
-    lineplot!(plt, x, y)
-  end
-  title!(plt, "connectivity")
-  display(plt)
-end
-
-function plot_blocks(lop)
-  Lx = (floatmax(), -floatmax())
-  Ly = (floatmax(), -floatmax())
-  for e = 1:length(lop)
-    (x, y) = lop[e].coord
-    Lxe = extrema(x)
-    Lye = extrema(y)
-    Lx = (min(Lx[1], Lxe[1]), max(Lx[2], Lxe[2]))
-    Ly = (min(Ly[1], Lye[1]), max(Ly[2], Lye[2]))
+    annotate!(plt, :l, nrows(plt.graphics), string(Ly[1]), color = :light_black)
+    annotate!(plt, :l, 1, string(Ly[2]), color = :light_black)
+    annotate!(plt, :bl, string(Lx[1]), color = :light_black)
+    annotate!(plt, :br, string(Lx[2]), color = :light_black)
+    for e = 1:size(EToV, 2)
+      (v1, v2, v3, v4) = EToV[1:4, e]
+      x = verts[1, [v1 v2 v4 v3 v1]][:]
+      y = verts[2, [v1 v2 v4 v3 v1]][:]
+      lineplot!(plt, x, y)
+    end
+    title!(plt, "connectivity")
+    display(plt)
   end
 
-  Lx = (floor(Int, Lx[1]), ceil(Int, Lx[2]))
-  Ly = (floor(Int, Ly[1]), ceil(Int, Ly[2]))
+  function plot_blocks(lop)
+    Lx = (floatmax(), -floatmax())
+    Ly = (floatmax(), -floatmax())
+    for e = 1:length(lop)
+      (x, y) = lop[e].coord
+      Lxe = extrema(x)
+      Lye = extrema(y)
+      Lx = (min(Lx[1], Lxe[1]), max(Lx[2], Lxe[2]))
+      Ly = (min(Ly[1], Lye[1]), max(Ly[2], Lye[2]))
+    end
 
-  plt = Plot(BrailleCanvas(80, 40,
-                           origin_x = Lx[1], origin_y = Ly[1],
-                           width = Lx[2] - Lx[1], height = Lx[2] - Lx[1]))
+    Lx = (floor(Int, Lx[1]), ceil(Int, Lx[2]))
+    Ly = (floor(Int, Ly[1]), ceil(Int, Ly[2]))
+
+    plt = Plot(BrailleCanvas(80, 40,
+                             origin_x = Lx[1], origin_y = Ly[1],
+                             width = Lx[2] - Lx[1], height = Lx[2] - Lx[1]))
 
 
-  annotate!(plt, :l, nrows(plt.graphics), string(Ly[1]), color = :light_black)
-  annotate!(plt, :l, 1, string(Ly[2]), color = :light_black)
-  annotate!(plt, :bl, string(Lx[1]), color = :light_black)
-  annotate!(plt, :br, string(Lx[2]), color = :light_black)
+    annotate!(plt, :l, nrows(plt.graphics), string(Ly[1]), color = :light_black)
+    annotate!(plt, :l, 1, string(Ly[2]), color = :light_black)
+    annotate!(plt, :bl, string(Lx[1]), color = :light_black)
+    annotate!(plt, :br, string(Lx[2]), color = :light_black)
 
-  for e = 1:length(lop)
-    (xf, yf) = lop[e].facecoord
-    bctype = lop[e].bctype
-    for lf = 1:length(xf)
-      if bctype[lf] == BC_LOCKED_INTERFACE
-        lineplot!(plt, xf[lf], yf[lf], color=:blue)
-      elseif bctype[lf] == BC_DIRICHLET
-        lineplot!(plt, xf[lf], yf[lf], color=:green)
-      elseif bctype[lf] == BC_DIRICHLET
-        lineplot!(plt, xf[lf], yf[lf], color=:yellow)
-      else
-        lineplot!(plt, xf[lf], yf[lf], color=:red)
+    for e = 1:length(lop)
+      (xf, yf) = lop[e].facecoord
+      bctype = lop[e].bctype
+      for lf = 1:length(xf)
+        if bctype[lf] == BC_LOCKED_INTERFACE
+          lineplot!(plt, xf[lf], yf[lf], color=:blue)
+        elseif bctype[lf] == BC_DIRICHLET
+          lineplot!(plt, xf[lf], yf[lf], color=:green)
+        elseif bctype[lf] == BC_DIRICHLET
+          lineplot!(plt, xf[lf], yf[lf], color=:yellow)
+        else
+          lineplot!(plt, xf[lf], yf[lf], color=:red)
+        end
       end
     end
+    title!(plt, "mesh")
+    display(plt)
   end
-  title!(plt, "mesh")
-  display(plt)
+catch
 end
