@@ -40,7 +40,9 @@ function Base.getproperty(
         D2SW,
     },
 } where {T, HBL, D1IW, D1BL, D1BW, D2IW, D2ID, D2BL, D2BW, D2BD, D2SW}
-    if sym === :HBL      # H boundary Width
+    if sym === :max_width
+        max(D1IW, D1BW, D2IW, D2BW, D2SW)
+    elseif sym === :HBL      # H boundary Width
         return HBL
     elseif sym === :H
         return SBPH{T, S}(sbp)

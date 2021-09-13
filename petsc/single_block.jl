@@ -9,19 +9,6 @@ using PETSc
 
 include("sbp_operators.jl")
 
-#XXX: I should remove this
-function sbp_width(p)
-    if p == 2
-        return (3, 3)
-    elseif p == 4
-        return (6, 5)
-    elseif p == 6
-        return (9, 7)
-    else
-        error("unknown sbp order: $p")
-    end
-end
-
 # Have the ksp version call the DMDA version
 sbp_matrix(p, A, J, ksp::PETSc.AbstractKSP, crr, crs, css; kwargs...) =
     sbp_matrix(p, A, J, PETSc.getDMDA(ksp), crr, crs, css; kwargs...)
@@ -209,7 +196,40 @@ function sbp_matrix(p, A, J, da::PETSc.AbstractDMDA, crr, crs, css; τscale = 1)
     PETSc.assemble!(A)
 end
 
-function single_block(
+function setup_dmda(petsclib, comm, sbp_order, Nq, opts)
+    Float = petsclib.PetscScalar
+
+    # get the stencil width (which is the boundary stencil size minus 1)
+    stencil_width = SBP(Float, sbp_order, Nq[1]).max_width
+
+    # Create the PETSC dmda object
+    da = PETSc.DMDA(
+        petsclib,
+        comm,
+        (PETSc.DM_BOUNDARY_NONE, PETSc.DM_BOUNDARY_NONE), # Use no ghost nodes
+        Nq,                                               # Global grid size
+        1,                                                # Number of DOF per node
+        stencil_width,                                    # Stencil width
+        PETSc.DMDA_STENCIL_BOX;                           # Stencil type
+        opts...,
+    )
+
+    return da
+end
+
+function setup_ksp(da, sbp_order, crr, css, crs, opts)
+    # Setup the Krylov solver for the distributed array
+    ksp = PETSc.KSP(da; opts...)
+
+    PETSc.setcomputeoperators!(
+        (x...) -> sbp_matrix(sbp_order, x..., crr, crs, css),
+        ksp,
+    )
+
+    return ksp
+end
+
+function compare_ops(
     sbp_order,
     Nq,
     Float = Float64,
@@ -229,31 +249,14 @@ function single_block(
     petsclib = PETSc.getlib(; PetscScalar = Float)
     PETSc.initialize(petsclib)
 
-    # get the stencil width (which is the boundary stencil size minus 1)
-    stencil_width = sbp_width(sbp_order)[1] - 1
+    da = setup_dmda(petsclib, comm, sbp_order, Nq, opts)
 
-    # Create the PETSC dmda object
-    da = PETSc.DMDA(
-        petsclib,
-        comm,
-        (PETSc.DM_BOUNDARY_NONE, PETSc.DM_BOUNDARY_NONE), # Use no ghost nodes
-        Nq,                                               # Global grid size
-        1,                                                # Number of DOF per node
-        stencil_width,                                    # Stencil width
-        PETSc.DMDA_STENCIL_BOX;                           # Stencil type
-        opts...,
-    )
-
-    # Setup the Krylov solver for the distributed array
-    ksp = PETSc.KSP(da; opts...)
-
-    PETSc.setcomputeoperators!(
-        (x...) -> sbp_matrix(sbp_order, x..., crr, crs, css),
-        ksp,
-    )
+    #XXX: Need to make crr, css, crs PETSc vectors for disctributed computing
+    #     and so that we can use multi-grid
+    ksp = setup_ksp(da, sbp_order, crr, css, crs, opts)
 
     A = PETSc.MatAIJ(da)
-    sbp_matrix(sbp_order, A, nothing, ksp, crr, crs, css)
+    ksp.computeops!(A, nothing, ksp)
 
     # println()
     # println("A")
@@ -305,5 +308,5 @@ function single_block(
     nothing
 end
 
-single_block(4, (30, 25))
-single_block(4, (25, 30))
+compare_ops(4, (30, 25))
+compare_ops(4, (25, 30))
