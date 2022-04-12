@@ -24,11 +24,11 @@ function main()
     ρ = 2.670
     cs = 3.464 / Ly
     μ = cs^2 * ρ 
-    σn = 50 / Ly^2
+    σn = 50 / Ly
     RSamin = 0.01
     RSamax = 0.025
     RSb = 0.015
-    RSDc = 0.032
+    RSDc = 0.016
     RSf0 = 0.6
     RSV0 = 1e-6
     RSVinit = 1e-9
