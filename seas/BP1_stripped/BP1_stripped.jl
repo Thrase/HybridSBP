@@ -11,8 +11,8 @@ function main()
 
 
      # number of grid points in each dimension
-     Nr = 400
-     Ns = 400
+     Nr = 2^9
+     Ns = 2^9
      stride_space = 10 # write-out every stride_space grid points along fault
      stride_time = 5
     Lx = 80
@@ -199,7 +199,7 @@ function main()
 
 
   sol = solve(prob, Tsit5(); isoutofdomain=stepcheck, dt=year_seconds,
-              atol = 1e-8, rtol = 1e-8, save_everystep=true,
+              atol = 1e-14, rtol = 1e-14, save_everystep=true,
               internalnorm=(x, _)->norm(x, Inf), callback=cb_mod)
 
   #@show ODEresults.t_list
