@@ -230,6 +230,10 @@ function locoperator(p, Nr, Ns, metrics=create_metrics(p,Nr,Ns),
   (Ds, HsI, Hs, s) = diagonal_sbp_D1(p, Ns; xc = (-1,1))
   Qs = Hs * Ds
   QsT = sparse(transpose(Qs))
+for n = 1:δNp
+      RSa[n] = RSamin - (RSamin - RSamax) *
+        min(1, max(0, (RSH1 - yf[n])/(RSH1 - RSH2)))
+  end
 
   # Identity matrices for the comuptation
   Ir = sparse(I, Nrp, Nrp)

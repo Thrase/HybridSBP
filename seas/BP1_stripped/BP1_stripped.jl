@@ -11,14 +11,14 @@ function main()
 
 
      # number of grid points in each dimension
-     Nr = 2^9
-     Ns = 2^9
-     stride_space = 10 # write-out every stride_space grid points along fault
+     Nr = 2^7
+     Ns = 2^7
+     stride_space = 1 # write-out every stride_space grid points along fault
      stride_time = 5
     Lx = 80
     Ly = 80
 
-    sim_years = 1500.
+    sim_years = 300.
 
     Vp = 1e-9 # plate rate
     ρ = 2.670
@@ -28,7 +28,7 @@ function main()
     RSamin = 0.01
     RSamax = 0.025
     RSb = 0.015
-    RSDc = 0.016
+    RSDc = 0.032
     RSf0 = 0.6
     RSV0 = 1e-6
     RSVinit = 1e-9
@@ -198,8 +198,8 @@ function main()
       end
 
 
-  sol = solve(prob, Tsit5(); isoutofdomain=stepcheck, dt=year_seconds,
-              atol = 1e-14, rtol = 1e-14, save_everystep=true,
+  sol = solve(prob, Tsit5(); dt=0.01,
+              atol = 1e-14, rtol = 1e-14, save_everystep=true, gamma = 0.2,
               internalnorm=(x, _)->norm(x, Inf), callback=cb_mod)
 
   #@show ODEresults.t_list

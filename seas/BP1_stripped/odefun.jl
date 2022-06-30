@@ -9,7 +9,7 @@ using Plots
 using DelimitedFiles
 
 function odefun(dψV, ψδ, p, t)
-  reject_step = p.reject_step
+  
   Vp = p.Vp
   M = p.M
   u = p.u
@@ -35,9 +35,6 @@ function odefun(dψV, ψδ, p, t)
 
   @show t ./ 31556926
 
-  if reject_step[1]
-    return
-  end
 
   ψ  = @view ψδ[        (1:δNp) ]
   δ  = ψδ[ δNp .+ (1:N+1) ]
@@ -72,11 +69,7 @@ function odefun(dψV, ψδ, p, t)
     an = RSa[n]
 
     τn = Δτ[n] + τz0
-    if isnan(τn)
-      println("τ reject")
-      reject_step[1] = true
-      return
-    end
+  
 
     VR = abs(τn / η)
     VL = -VR
@@ -86,21 +79,11 @@ function odefun(dψV, ψδ, p, t)
                                  atolx = 1e-9, rtolx = 1e-9)
 
 
-    if isnan(Vn) || iter < 0
-      println("V reject")
-      reject_step[1] = true
-      return
-          #error()
-    end
+    
     V[n] = Vn
 
     dψ[n] = (RSb * RSV0 / RSDc) * (exp((RSf0 - ψn) / RSb) - abs(Vn) / RSV0)
-    if !isfinite(dψ[n])
-      println("ψ reject")
-      dψ[n] = 0
-      reject_step[1] = true
-      return
-    end
+   
   end
 
   V[δNp+1:N+1] .= Vp
